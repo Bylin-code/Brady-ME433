@@ -42,6 +42,7 @@ int main() {
     
     while (true) {
         triangleWave(1);
+        // sineWave(2);
     }
     
 }
