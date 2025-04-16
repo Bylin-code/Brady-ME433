@@ -42,7 +42,7 @@ int main()
 
     // infinite loop
     while (true) {
-        write_ram(0, 0); // Write a float value to RAM at address 0
+        write_ram(0, 3.14159f); // Write a float value to RAM at address 0
         sleep_ms(200);
         float ram_val = read_ram(0);
         printf("The value is: %f", ram_val);
