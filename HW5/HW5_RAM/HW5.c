@@ -51,17 +51,21 @@ int main()
 
     // infinite loop
     while (true) {
-        // Read back the sine wave values from RAM and write them to the DAC
+        // We want this loop to run at 1 Hz → one full loop every 1 second (1000 ms)
+        // There are 256 iterations (i = 0 to 255)
+        // So, each iteration must take: 1000 ms / 256 ≈ 3.90625 ms
+        // We'll use sleep_us(3906) to get close to this with microsecond precision:
+        // 3906 µs * 256 ≈ 999,936 µs ≈ ~1.000 seconds total
+    
         for (uint16_t i = 0; i < 256; i++) {
-            float value = read_ram(i); // Read the value from RAM
-            printf("Value at address %d: %f\n", i * 4, value); // Print the value for debugging
-            write_dac(0, value);       // Write the value to DAC channel A
-            sleep_ms(10);              // Delay to allow DAC to settle
-        }
-        // Optionally, you can add a delay here to control the frequency of the output
-        sleep_ms(1000); // Delay before repeating the loop
+            float value = read_ram(i * 4);  // Each float is 4 bytes, so step by 4
+            printf("Value at address %d: %f\n", i * 4, value);
+            write_dac(0, value);
+            sleep_us(3906);  // Delay to match 1 Hz total loop rate
         }
     }
+    return 0; // Ensure main() returns an integer value
+}
 
 // init_ram function
 // Sets the RAM chip to sequential operation. To set the mode, send the instruction 0b00000001 (0x01) 
