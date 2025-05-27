@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "pico/stdlib.h"
 
 #include "bsp/board_api.h"
@@ -56,6 +57,10 @@ bool right_btn_state = false;
 bool up_btn_state = false;
 bool down_btn_state = false;
 bool mode_btn_state = false;
+bool mode_btn_prev_state = false;
+
+// Mouse mode: 0 = normal (button control), 1 = circular movement
+int mouse_mode = 0;
 
 // Variables to track button press duration
 absolute_time_t left_btn_press_time = 0;
@@ -148,6 +153,15 @@ int main(void)
         down_btn_press_time = current_time; // Record press start time
     }
     down_btn_prev_state = down_btn_state;
+    
+    // Mode button press tracking - toggle mouse mode when pressed
+    if (mode_btn_state && !mode_btn_prev_state) {
+        // Toggle between normal mode (0) and circle mode (1)
+        mouse_mode = 1 - mouse_mode;
+        // Turn on LED to indicate current mode
+        board_led_write(mouse_mode);
+    }
+    mode_btn_prev_state = mode_btn_state;
 
     tud_task(); // tinyusb device task
 
@@ -227,34 +241,55 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
       int8_t up_down_gain = base_gain;
       absolute_time_t current_time = get_absolute_time();
       
-      // Calculate dynamic gain based on button press duration
-      if (left_btn_state) {
-        uint32_t hold_time_ms = absolute_time_diff_us(left_btn_press_time, current_time) / 1000;
-        left_right_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 500ms held
-        if (left_right_gain > 30) left_right_gain = 30; // Cap at 30
+      // Check which mode we're in - normal or circular
+      if (mouse_mode == 0) {
+        // Normal mode - use button controls with dynamic gain
+        // Calculate dynamic gain based on button press duration
+        if (left_btn_state) {
+          uint32_t hold_time_ms = absolute_time_diff_us(left_btn_press_time, current_time) / 1000;
+          left_right_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 100ms held
+          if (left_right_gain > 30) left_right_gain = 30; // Cap at 30
+        }
+        
+        if (right_btn_state) {
+          uint32_t hold_time_ms = absolute_time_diff_us(right_btn_press_time, current_time) / 1000;
+          left_right_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 100ms held
+          if (left_right_gain > 30) left_right_gain = 30; // Cap at 30
+        }
+        
+        if (up_btn_state) {
+          uint32_t hold_time_ms = absolute_time_diff_us(up_btn_press_time, current_time) / 1000;
+          up_down_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 100ms held
+          if (up_down_gain > 30) up_down_gain = 30; // Cap at 30
+        }
+        
+        if (down_btn_state) {
+          uint32_t hold_time_ms = absolute_time_diff_us(down_btn_press_time, current_time) / 1000;
+          up_down_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 100ms held
+          if (up_down_gain > 30) up_down_gain = 30; // Cap at 30
+        }
+        
+        // Calculate movement with dynamic gain
+        dx = (left_btn_state - right_btn_state) * -1 * left_right_gain;
+        dy = (up_btn_state - down_btn_state) * -1 * up_down_gain;
+      } else {
+        // Circle mode - move mouse in a slow circle
+        static uint32_t circle_position = 0;
+        
+        // Calculate position along the circle using sine and cosine
+        // Use circle_position as the angle (in degrees)
+        // Convert to radians for sin/cos functions
+        float angle_rad = (circle_position % 360) * (3.14159f / 180.0f);
+        
+        // Calculate x and y coordinates on the circle
+        // Scale determines the size of the circle
+        float scale = 10.0f;  // Adjust for desired circle size
+        dx = (int8_t)(sin(angle_rad) * scale);
+        dy = (int8_t)(cos(angle_rad) * scale);
+        
+        // Increment position for next time (controls speed of rotation)
+        circle_position += 2;  // Smaller increment = slower movement
       }
-      
-      if (right_btn_state) {
-        uint32_t hold_time_ms = absolute_time_diff_us(right_btn_press_time, current_time) / 1000;
-        left_right_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 500ms held
-        if (left_right_gain > 30) left_right_gain = 30; // Cap at 30
-      }
-      
-      if (up_btn_state) {
-        uint32_t hold_time_ms = absolute_time_diff_us(up_btn_press_time, current_time) / 1000;
-        up_down_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 500ms held
-        if (up_down_gain > 30) up_down_gain = 30; // Cap at 30
-      }
-      
-      if (down_btn_state) {
-        uint32_t hold_time_ms = absolute_time_diff_us(down_btn_press_time, current_time) / 1000;
-        up_down_gain = base_gain + (hold_time_ms / 100); // Increase gain by 1 for every 500ms held
-        if (up_down_gain > 30) up_down_gain = 30; // Cap at 30
-      }
-      
-      // Calculate movement with dynamic gain
-      dx = (left_btn_state - right_btn_state) * -1 * left_right_gain;
-      dy = (up_btn_state - down_btn_state) * -1 * up_down_gain;
 
       // no button, calculated movement, no scroll, no pan
       tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, dx, dy, 0, 0);
