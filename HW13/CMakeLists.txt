@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(HW13 HW13.c )
+add_executable(HW13 HW13.c ssd1306.c)
 
 pico_set_program_name(HW13 "HW13")
 pico_set_program_version(HW13 "0.1")
@@ -46,6 +46,7 @@ pico_enable_stdio_usb(HW13 1)
 
 # Add the standard library to the build
 target_link_libraries(HW13
+        hardware_adc    
         pico_stdlib)
 
 # Add the standard include files to the build
