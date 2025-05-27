@@ -106,32 +106,41 @@ void ssd1306_command(uint8_t cmd) {
 void ssd1306_init() {
     sleep_ms(100);  // Wait for display to power up
     
-    // Initialize display
-    ssd1306_command(SSD1306_DISPLAYOFF);
-    ssd1306_command(SSD1306_SETDISPLAYCLOCKDIV);
-    ssd1306_command(0x80);  // Suggested ratio
-    ssd1306_command(SSD1306_SETMULTIPLEX);
-    ssd1306_command(SSD1306_HEIGHT - 1);
-    ssd1306_command(SSD1306_SETDISPLAYOFFSET);
-    ssd1306_command(0x00);
-    ssd1306_command(SSD1306_SETSTARTLINE | 0x00);
-    ssd1306_command(SSD1306_CHARGEPUMP);
-    ssd1306_command(0x14);  // Enable charge pump
-    ssd1306_command(SSD1306_MEMORYMODE);
-    ssd1306_command(0x00);  // Horizontal addressing mode
-    ssd1306_command(SSD1306_SEGREMAP | 0x1);  // Flip horizontally
-    ssd1306_command(SSD1306_COMSCANDEC);  // Flip vertically
-    ssd1306_command(SSD1306_SETCOMPINS);
-    ssd1306_command(0x12);
-    ssd1306_command(SSD1306_SETCONTRAST);
-    ssd1306_command(0xCF);
-    ssd1306_command(SSD1306_SETPRECHARGE);
-    ssd1306_command(0xF1);
-    ssd1306_command(SSD1306_SETVCOMDETECT);
-    ssd1306_command(0x40);
-    ssd1306_command(SSD1306_DISPLAYALLON_RESUME);
-    ssd1306_command(SSD1306_NORMALDISPLAY);
-    ssd1306_command(SSD1306_DISPLAYON);
+    uint8_t cmds[] = {
+        SSD1306_DISPLAYOFF,             // 0xAE
+        SSD1306_SETDISPLAYCLOCKDIV,     // 0xD5
+        0x80,                           // Suggested ratio
+        SSD1306_SETMULTIPLEX,           // 0xA8
+        0x3F,                           // 0x3F for 128x64, 0x1F for 128x32
+        SSD1306_SETDISPLAYOFFSET,        // 0xD3
+        0x00,                           // No offset
+        SSD1306_SETSTARTLINE | 0x00,    // 0x40 | start line
+        SSD1306_CHARGEPUMP,             // 0x8D
+        0x14,                           // Enable charge pump
+        SSD1306_MEMORYMODE,             // 0x20
+        0x00,                           // Act like ks0108 (horizontal addressing)
+        SSD1306_SEGREMAP | 0x01,        // 0xA0 | bit 0 (flip horizontally)
+        SSD1306_COMSCANDEC,             // 0xC8 (flip vertically)
+        SSD1306_SETCOMPINS,             // 0xDA
+        0x12,                           // 0x12 for 128x64, 0x02 for 128x32
+        SSD1306_SETCONTRAST,            // 0x81
+        0x8F,                           // Medium contrast (0x8F)
+        SSD1306_SETPRECHARGE,           // 0xD9
+        0xF1,                           // 0xF1 for external VCC, 0x22 for internal
+        SSD1306_SETVCOMDETECT,          // 0xDB
+        0x40,                           // 0x40
+        SSD1306_DISPLAYALLON_RESUME,    // 0xA4
+        SSD1306_NORMALDISPLAY,          // 0xA6
+        SSD1306_DISPLAYON               // 0xAF
+    };
+    
+    // Send each command individually with delay
+    for (int i = 0; i < sizeof(cmds); i++) {
+        ssd1306_command(cmds[i]);
+        sleep_ms(1);  // Small delay between commands
+    }
+    
+    printf("SSD1306 initialization complete\n");
 }
 
 void ssd1306_clear_buffer() {
