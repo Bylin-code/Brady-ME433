@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include "ssd1306.h"
@@ -80,17 +81,65 @@ int main() {
 
     int16_t ax, ay, az;
 
+    // Function to draw a single pixel
+    void drawPixel(int x, int y) {
+        // Make sure we don't try to draw outside the display boundaries
+        if (x >= 0 && x < 128 && y >= 0 && y < 64) {
+            ssd1306_drawPixel(x, y, 1);  // 1 for white/on
+        }
+    }
+
+    // Bresenham line algorithm for drawing lines
+    void drawLine(int x0, int y0, int x1, int y1) {
+        int dx = abs(x1 - x0);
+        int dy = -abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx + dy;
+        int e2;
+        
+        while (true) {
+            drawPixel(x0, y0);
+            if (x0 == x1 && y0 == y1) break;
+            e2 = 2 * err;
+            if (e2 >= dy) {
+                if (x0 == x1) break;
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx) {
+                if (y0 == y1) break;
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+
     while (true) {
         read_accel(&ax, &ay, &az);
         printf("Accel X: %d, Y: %d, Z: %d\n", ax, ay, az);
 
+        // Clear the display
         ssd1306_clear();
-        drawString(0, 0, "Accel X: ");
-        drawString(0, 25, "Accel Y: ");
-
+        
+        // Define the center of the display
+        int center_x = 64;  // SSD1306 is typically 128x64, so center is at (64, 32)
+        int center_y = 16;
+        
+        // Scale the accelerometer values to get reasonable line lengths
+        // The scaling factor may need adjustment based on your specific accelerometer sensitivity
+        float scale = 0.004;
+        int line_end_x = center_x - (int)(ax * scale);  // Invert X to make the line point opposite to acceleration
+        int line_end_y = center_y + (int)(ay * scale);  // Invert Y to make the line point opposite to acceleration
+        
+        // Draw a line from center to the calculated endpoint
+        drawLine(center_x, center_y, line_end_x, line_end_y);
+        
+        // Update the display
         ssd1306_update();
-
-        sleep_ms(50);
+        
+        // Short delay for faster updates
+        sleep_ms(10);
     }
 }
 
