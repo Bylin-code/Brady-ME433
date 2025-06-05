@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "cam.h"
 #include "hardware/pwm.h"
 
 // Motor pin definitions
@@ -10,6 +11,11 @@
 
 // PWM configuration
 #define WRAP_VALUE 12500 // PWM wrap value (125MHz/12500 = 10kHz PWM freq)
+
+float pid_range = 0.8f;
+int line_center = 25;
+int spread_left = 41;
+int spread_right = 11;
 
 // PWM slice IDs for each pin
 uint slice_num_m1f;
@@ -33,10 +39,6 @@ void set_motor_speed(uint pin, float speed) {
     // Set PWM level
     pwm_set_chan_level(pwm_gpio_to_slice_num(pin), pwm_gpio_to_channel(pin), level);
 }
-
-/**
- * Initialize motor control
- */
 
 void setup_motors(void) {
     // Initialize pins for PWM
@@ -101,18 +103,61 @@ void drive_robot(float control) {
     set_motor_speed(M2B, 0);           // Right backward off
 }
 
-int main() {
+
+int main()
+{
     stdio_init_all();
+
+
+    printf("Hello, camera!\n");
+    init_camera_pins();
+
     printf("Line Bot Simple Control Started\n");
-    
-    // Setup motors and PWM
     setup_motors();
-    
-    // Example usage demonstration
+ 
     while (true) {
-        // Go straight (0.0)
-        printf("Going straight at full speed\n");
-        drive_robot(0.0f);
-        sleep_ms(1000);
+        // uncomment these and printImage() when testing with python 
+        //char m[10];
+        //scanf("%s",m);
+
+        setSaveImage(1);
+        while(getSaveImage()==1){}
+        convertImage();
+        int com = findLine(IMAGESIZEY/2); // calculate the position of the center of the line
+        setPixel(IMAGESIZEY/2,com,0,255,0); // draw the center so you can see it in python
+        
+        // Map com value based on defined ranges
+        float control;
+        
+        // Map the ranges as required:
+        // spread_left (33) -> -pid_range + 0.5*pid_range (i.e., -0.5*pid_range)
+        // line_center (21) -> 0
+        // spread_right (11) -> pid_range - 0.5*pid_range (i.e., 0.5*pid_range)
+        
+        // Note: Based on the values, spread_left > line_center > spread_right
+        // This means larger values are to the left, smaller to the right
+        
+        if (com >= line_center) {
+            // Left side mapping (values higher than line_center are to the left)
+            if (com >= spread_left) {
+                control = -0.5f * pid_range; // Clamp to maximum left turn
+            } else {
+                // Map from line_center to spread_left
+                control = -0.5f * pid_range * ((float)(com - line_center) / (float)(spread_left - line_center));
+            }
+        } else {
+            // Right side mapping (values lower than line_center are to the right)
+            if (com <= spread_right) {
+                control = 0.5f * pid_range; // Clamp to maximum right turn
+            } else {
+                // Map from line_center to spread_right
+                control = 0.5f * pid_range * (1.0f - ((float)(com - spread_right) / (float)(line_center - spread_right)));
+            }
+        }
+        
+        //printImage();
+        printf("%d,%0.2f\r\n", com, control); // print both com and control values
+        drive_robot(control); // Control the robot based on the line position
     }
 }
+
